@@ -11,6 +11,8 @@ pub enum AppError {
     InternalServerError(String),
     DatabaseError(String),
     AWSError(String),
+    JwtError(String),
+    BadRequest(String),
 }
 
 #[derive(Serialize)]
@@ -27,6 +29,8 @@ impl fmt::Display for AppError {
             AppError::InternalServerError(msg) => write!(f, "Internal Server Error: {}", msg),
             AppError::DatabaseError(msg) => write!(f, "Database Error: {}", msg),
             AppError::AWSError(msg) => write!(f, "AWS Error: {}", msg),
+            AppError::JwtError(msg) => write!(f, "Jwt Error: {}", msg),
+            AppError::BadRequest(msg) => write!(f, "BadRequest Error: {}", msg),
         }
     }
 }
@@ -40,6 +44,8 @@ impl ResponseError for AppError {
             AppError::InternalServerError(msg) => HttpResponse::InternalServerError().json(ErrorResponse { error: msg.clone() }),
             AppError::DatabaseError(msg) => HttpResponse::InternalServerError().json(ErrorResponse { error: msg.clone() }),
             AppError::AWSError(msg) => HttpResponse::InternalServerError().json(ErrorResponse { error: msg.clone() }),
+            AppError::JwtError(msg) => HttpResponse::Unauthorized().json(ErrorResponse { error: msg.clone() }),
+            AppError::BadRequest(msg) => HttpResponse::Unauthorized().json(ErrorResponse { error: msg.clone() }),
         }
     }
 }
