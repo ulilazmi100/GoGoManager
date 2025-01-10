@@ -3,12 +3,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use validator::Validate;
 use uuid::Uuid;
-use time::OffsetDateTime;
+// use time::OffsetDateTime;
 use crate::utils;
 use crate::models::department::Department;
 use actix_web::error::{ErrorBadRequest, ErrorUnauthorized, ErrorConflict, ErrorNotFound};
 use jsonwebtoken::errors::Error as JwtError;
 use validator::ValidationErrors;
+use chrono::Utc;
 use crate::errors::AppError;
 
 #[derive(Deserialize, Validate)]
@@ -68,7 +69,7 @@ pub async fn create_department(
         }
 
         let department_id = Uuid::new_v4();
-        let now = OffsetDateTime::now_utc();
+        let now = Utc::now();
 
         sqlx::query!(
             "INSERT INTO departments (department_id, name, created_at, updated_at) VALUES ($1, $2, $3, $4)",
@@ -159,7 +160,7 @@ pub async fn update_department(
             return Err(ErrorNotFound("Department not found"));
         }
 
-        let now = OffsetDateTime::now_utc();
+        let now = Utc::now();
 
         sqlx::query!(
             "UPDATE departments SET name = $1, updated_at = $2 WHERE department_id = $3",

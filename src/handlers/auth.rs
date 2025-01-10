@@ -8,6 +8,7 @@ use jsonwebtoken::{encode, Header, EncodingKey};
 use validator::{Validate, ValidationErrors};
 use std::env;
 use rand;
+use chrono::Utc;
 use crate::utils;
 
 #[derive(Deserialize, Validate)]
@@ -68,7 +69,7 @@ pub async fn auth_handler(
                 .to_string();
 
             let user_id = Uuid::new_v4();
-            let now = OffsetDateTime::now_utc();
+            let now = Utc::now();
             sqlx::query!("INSERT INTO users (user_id, email, password, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)",
                          user_id, &req.0.email, &password_hash, now, now)
                 .execute(&**pool)
