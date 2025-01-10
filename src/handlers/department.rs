@@ -13,7 +13,7 @@ use chrono::Utc;
 use crate::errors::AppError;
 
 #[derive(Deserialize, Validate)]
-struct NewDepartment {
+pub struct NewDepartment {
     #[validate(length(min = 4, max = 33))]
     name: String,
 }
@@ -25,14 +25,14 @@ struct DepartmentResponse {
 }
 
 #[derive(Deserialize)]
-struct DepartmentQueryParams {
+pub struct DepartmentQueryParams {
     name: Option<String>,
     limit: Option<i64>,
     offset: Option<i64>,
 }
 
 #[derive(Deserialize, Validate)]
-struct DepartmentUpdate {
+pub struct DepartmentUpdate {
     #[validate(length(min = 4, max = 33))]
     name: String,
 }

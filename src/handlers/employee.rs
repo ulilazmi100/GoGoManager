@@ -9,7 +9,7 @@ use crate::models::employee::Employee;
 use serde_json::json;
 
 #[derive(Deserialize, Validate)]
-struct NewEmployee {
+pub struct NewEmployee {
     #[validate(length(min = 5, max = 33))]
     identity_number: String,
     #[validate(length(min = 4, max = 33))]
@@ -32,7 +32,7 @@ struct EmployeeResponse {
 }
 
 #[derive(Deserialize)]
-struct EmployeeQueryParams {
+pub struct EmployeeQueryParams {
     identity_number: Option<String>,
     name: Option<String>,
     gender: Option<String>,
@@ -42,7 +42,7 @@ struct EmployeeQueryParams {
 }
 
 #[derive(Deserialize, Validate)]
-struct EmployeeUpdate {
+pub struct EmployeeUpdate {
     #[validate(length(min = 5, max = 33))]
     identity_number: Option<String>,
     #[validate(length(min = 4, max = 33))]

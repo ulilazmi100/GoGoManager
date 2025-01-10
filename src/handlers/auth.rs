@@ -12,7 +12,7 @@ use chrono::Utc;
 use crate::utils;
 
 #[derive(Deserialize, Validate)]
-struct AuthRequest {
+pub struct AuthRequest {
     #[validate(email)]
     email: String,
     #[validate(length(min = 8, max = 32))]

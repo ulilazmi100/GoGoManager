@@ -8,7 +8,7 @@ use crate::models::user::UserWithoutDates;
 use crate::errors::AppError;
 
 #[derive(Deserialize, Validate)]
-struct UserProfileUpdate {
+pub struct UserProfileUpdate {
     #[validate(email)]
     email: Option<String>,
     #[validate(length(min = 4, max = 52))]
