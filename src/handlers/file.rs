@@ -1,13 +1,14 @@
 use actix_web::{web, HttpResponse, HttpRequest, Error};
 use aws_sdk_s3::Client as S3Client;
 use uuid::Uuid;
-use infer;
 use crate::utils;
 use std::env;
 use serde_json::json;
 use actix_multipart::Multipart;
 use futures_util::StreamExt;
 use log::{info, error};
+
+use infer; // Add this import
 
 pub async fn upload_file(
     req: HttpRequest,
@@ -36,15 +37,17 @@ pub async fn upload_file(
     let mut multipart = Multipart::new(&req.headers(), payload);
     let mut file_data = Vec::new();
     let mut file_size = 0;
-    let mut file_type = None;
 
     while let Some(item) = multipart.next().await {
         let mut field = item.map_err(|err| {
             error!("Invalid multipart field: {:?}", err);
             actix_web::error::ErrorBadRequest("Invalid multipart field")
         })?;
+
+        // Ensure the field name is "file"
         if field.name() != "file" {
-            continue;
+            error!("Invalid field name: expected 'file'");
+            return Err(actix_web::error::ErrorBadRequest("Invalid field name: expected 'file'"));
         }
 
         // Process file chunks
@@ -54,15 +57,12 @@ pub async fn upload_file(
                 actix_web::error::ErrorBadRequest("Failed to read chunk")
             })?;
             file_size += chunk.len();
-            if file_size > 102400 {
+            if file_size > 102400 { // 100 KiB limit
                 error!("File size exceeds 100KiB limit");
                 return Err(actix_web::error::ErrorBadRequest("File size exceeds 100KiB limit"));
             }
             file_data.extend_from_slice(&chunk);
         }
-
-        // Capture the file's content type
-        file_type = field.content_type().map(|ct| ct.to_string());
     }
 
     if file_data.is_empty() {
@@ -71,22 +71,26 @@ pub async fn upload_file(
     }
 
     info!("File size: {}", file_size);
-    info!("File type: {:?}", file_type);
+
+    // Detect file type using the `infer` crate
+    let file_type = infer::get(&file_data).ok_or_else(|| {
+        error!("Unable to detect file type");
+        actix_web::error::ErrorBadRequest("Unable to detect file type")
+    })?;
+
+    info!("Detected file type: {:?}", file_type.mime_type());
 
     // Validate file type
-    let file_type = file_type.ok_or_else(|| {
-        error!("Invalid file type");
-        actix_web::error::ErrorBadRequest("Invalid file type")
-    })?;
-    if !["image/jpeg", "image/png"].contains(&file_type.as_str()) {
-        error!("Only JPEG and PNG files are allowed");
-        return Err(actix_web::error::ErrorBadRequest("Only JPEG and PNG files are allowed"));
+    if !["image/jpeg", "image/jpg", "image/png"].contains(&file_type.mime_type()) {
+        error!("Only JPEG, JPG, and PNG files are allowed");
+        return Err(actix_web::error::ErrorBadRequest("Only JPEG, JPG, and PNG files are allowed"));
     }
 
     // Generate unique filename
     let file_id = Uuid::new_v4();
-    let extension = match file_type.as_str() {
+    let extension = match file_type.mime_type() {
         "image/jpeg" => "jpg",
+        "image/jpg" => "jpg",
         "image/png" => "png",
         _ => "bin", // Fallback, though validation should prevent this
     };
@@ -100,6 +104,7 @@ pub async fn upload_file(
             error!("AWS_S3_BUCKET environment variable not set: {:?}", err);
             actix_web::error::ErrorInternalServerError("AWS_S3_BUCKET not set")
         })?;
+
     s3_client.put_object()
         .bucket(&bucket_name)
         .key(&file_name)
