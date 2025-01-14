@@ -25,3 +25,13 @@ pub struct UserWithoutDates {
     pub company_name: Option<String>,
     pub company_image_uri: Option<String>,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct GetUserProfileResponse {
+    pub email: String,
+    pub name: Option<String>,
+    pub user_image_uri: Option<String>,
+    pub company_name: Option<String>,
+    pub company_image_uri: Option<String>,
+}
