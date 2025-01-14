@@ -9,11 +9,15 @@ use dotenv::dotenv;
 use sqlx::PgPool;
 use std::env;
 use log::info;
+use crate::utils::s3::create_s3_client;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
     env_logger::init();
+
+    // Initialize S3 client
+    let s3_client = create_s3_client().await;
 
     // Validate JWT secret
     let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET must be set");
@@ -31,6 +35,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(pool.clone()))
+            .app_data(web::Data::new(s3_client.clone())) // Add S3 client to app data
             .service(
                 web::resource("/v1/auth")
                     .route(web::post().to(handlers::auth::auth_handler)),
