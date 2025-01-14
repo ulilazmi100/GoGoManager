@@ -32,27 +32,27 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(pool.clone()))
             .service(
-                web::resource("/auth")
+                web::resource("/v1/auth")
                     .route(web::post().to(handlers::auth::auth_handler)),
             )
             .service(
-                web::resource("/user")
+                web::resource("/v1/user")
                     .route(web::get().to(handlers::user::get_user_profile))
                     .route(web::patch().to(handlers::user::update_user_profile)),
             )
             .service(
-                web::resource("/file")
+                web::resource("/v1/file")
                     .route(web::post().to(handlers::file::upload_file)),
             )
             .service(
-                web::resource("/employee")
+                web::resource("/v1/employee")
                     .route(web::post().to(handlers::employee::create_employee))
                     .route(web::get().to(handlers::employee::get_employees))
                     .route(web::patch().to(handlers::employee::update_employee))
                     .route(web::delete().to(handlers::employee::delete_employee)),
             )
             .service(
-                web::resource("/department")
+                web::resource("/v1/department")
                     .route(web::post().to(handlers::department::create_department))
                     .route(web::get().to(handlers::department::get_departments))
                     .route(web::patch().to(handlers::department::update_department))
