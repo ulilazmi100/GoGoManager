@@ -4,18 +4,18 @@ use std::env;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: String, // User email
+    pub sub: String, // User ID (UUID)
     pub exp: usize,  // Expiration timestamp
 }
 
-pub fn generate_token(email: &str) -> Result<String, jsonwebtoken::errors::Error> {
+pub fn generate_token(user_id: &str) -> Result<String, jsonwebtoken::errors::Error> {
     let expiration = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::days(7))
         .expect("Invalid timestamp")
         .timestamp() as usize;
 
     let claims = Claims {
-        sub: email.to_string(),
+        sub: user_id.to_string(), // Use user_id instead of email
         exp: expiration,
     };
 
