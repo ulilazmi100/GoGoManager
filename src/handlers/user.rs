@@ -3,23 +3,30 @@ use serde::{Deserialize, Serialize};
 use validator::Validate;
 use uuid::Uuid;
 use chrono::Utc;
+use url::Url;
 use crate::utils;
 use crate::models::user::{GetUserProfileResponse, UserWithoutDates};
 use crate::errors::AppError;
+// use log::{info, error};
 
 #[derive(Deserialize, Validate)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct UserProfileUpdate {
     #[validate(email)]
-    email: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    email: Option<String>,
     #[validate(length(min = 4, max = 52))]
-    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[validate(url)]
-    user_image_uri: String,
+    user_image_uri: Option<String>,
     #[validate(length(min = 4, max = 52))]
-    company_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    company_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[validate(url)]
-    company_image_uri: String,
+    company_image_uri: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -80,6 +87,51 @@ pub async fn update_user_profile(
     pool: web::Data<sqlx::PgPool>,
     updates: web::Json<UserProfileUpdate>,
 ) -> Result<HttpResponse, actix_web::Error> {
+    // Check token first
+    let token = req.headers().get("Authorization")
+        .and_then(|auth| auth.to_str().ok())
+        .and_then(|auth| auth.split_whitespace().nth(1))
+        .ok_or_else(|| AppError::Unauthorized("Missing token".to_string()))?;
+
+    let claims = utils::jwt::validate_token(token)
+        .map_err(|err| AppError::Unauthorized(err.to_string()))?;
+
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::Unauthorized("Invalid user ID in token".to_string()))?;
+
+    // Check if the request contains at least one non-null field
+    if updates.email.is_none()
+        && updates.name.is_none()
+        && updates.user_image_uri.is_none()
+        && updates.company_name.is_none()
+        && updates.company_image_uri.is_none()
+    {
+        return Err(AppError::BadRequest("No update fields provided".to_string()).into());
+    }
+
+    // Check if any field is explicitly set to null
+    if updates.email.is_none()
+        || updates.name.is_none()
+        || updates.user_image_uri.is_none()
+        || updates.company_name.is_none()
+        || updates.company_image_uri.is_none()
+    {
+        return Err(AppError::BadRequest("Null values are not allowed".to_string()).into());
+    }
+
+    // Validate URLs if provided
+    if let Some(uri) = &updates.user_image_uri {
+        Url::parse(uri).map_err(|_| {
+            AppError::BadRequest("Invalid URL format in 'user_image_uri'".to_string())
+        })?;
+    }
+
+    if let Some(uri) = &updates.company_image_uri {
+        Url::parse(uri).map_err(|_| {
+            AppError::BadRequest("Invalid URL format in 'company_image_uri'".to_string())
+        })?;
+    }
+
     // Validate input fields
     updates.validate().map_err(|err| {
         let details = err.field_errors()
@@ -96,47 +148,49 @@ pub async fn update_user_profile(
         AppError::BadRequest(format!("Validation failed: {}", details))
     })?;
 
-    // Extract token and validate
-    let token = req.headers().get("Authorization")
-        .and_then(|auth| auth.to_str().ok())
-        .and_then(|auth| auth.split_whitespace().nth(1))
-        .ok_or_else(|| AppError::Unauthorized("Missing token".to_string()))?;
-    let claims = utils::jwt::validate_token(token)
-        .map_err(|err| AppError::Unauthorized(err.to_string()))?;
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::Unauthorized("Invalid user ID in token".to_string()))?;
-
     // Check for duplicate email if provided
-    let email_exists = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM users WHERE LOWER(email) = LOWER($1) AND user_id != $2)",
-        updates.email,
-        user_id
-    )
-    .fetch_one(&**pool)
-    .await
-    .map_err(|e| {
-        log::error!("DB error during email check: {:?}", e);
-        AppError::InternalServerError("Database error".to_string())
-    })?;
+    if let Some(email) = &updates.email {
+        let email_exists = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM users WHERE LOWER(email) = LOWER($1) AND user_id != $2)",
+            email,
+            user_id
+        )
+        .fetch_one(&**pool)
+        .await
+        .map_err(|e| {
+            log::error!("DB error during email check: {:?}", e);
+            AppError::InternalServerError("Database error".to_string())
+        })?;
 
-    if email_exists.unwrap_or(false) {
-        return Err(AppError::Conflict("Email already exists".to_string()).into());
+        if email_exists.unwrap_or(false) {
+            return Err(AppError::Conflict("Email already exists".to_string()).into());
+        }
     }
 
     // Build the update query dynamically
     let mut query = sqlx::QueryBuilder::new("UPDATE users SET");
-    let mut separated = query.separated(", ");
+    let mut separated: sqlx::query_builder::Separated<'_, '_, sqlx::Postgres, &str> = query.separated(", ");
 
-    separated.push("email = ");
-    separated.push_bind(&updates.email);
-    separated.push("name = ");
-    separated.push_bind(&updates.name);
-    separated.push("user_image_uri = ");
-    separated.push_bind(&updates.user_image_uri);
-    separated.push("company_name = ");
-    separated.push_bind(&updates.company_name);
-    separated.push("company_image_uri = ");
-    separated.push_bind(&updates.company_image_uri);
+    if let Some(email) = &updates.email {
+        separated.push("email = ");
+        separated.push_bind(email);
+    }
+    if let Some(name) = &updates.name {
+        separated.push("name = ");
+        separated.push_bind(name);
+    }
+    if let Some(user_image_uri) = &updates.user_image_uri {
+        separated.push("user_image_uri = ");
+        separated.push_bind(user_image_uri);
+    }
+    if let Some(company_name) = &updates.company_name {
+        separated.push("company_name = ");
+        separated.push_bind(company_name);
+    }
+    if let Some(company_image_uri) = &updates.company_image_uri {
+        separated.push("company_image_uri = ");
+        separated.push_bind(company_image_uri);
+    }
     separated.push("updated_at = ");
     separated.push_bind(Utc::now());
     query.push(" WHERE user_id = ");
