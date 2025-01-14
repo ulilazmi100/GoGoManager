@@ -45,7 +45,7 @@ impl ResponseError for AppError {
             AppError::DatabaseError(msg) => HttpResponse::InternalServerError().json(ErrorResponse { error: msg.clone() }),
             AppError::AWSError(msg) => HttpResponse::InternalServerError().json(ErrorResponse { error: msg.clone() }),
             AppError::JwtError(msg) => HttpResponse::Unauthorized().json(ErrorResponse { error: msg.clone() }),
-            AppError::BadRequest(msg) => HttpResponse::Unauthorized().json(ErrorResponse { error: msg.clone() }),
+            AppError::BadRequest(msg) => HttpResponse::BadRequest().json(ErrorResponse { error: msg.clone() }),
         }
     }
 }
