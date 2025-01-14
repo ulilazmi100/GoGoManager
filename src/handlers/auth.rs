@@ -1,4 +1,5 @@
 use actix_web::{web, HttpResponse};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -8,7 +9,6 @@ use jsonwebtoken::{encode, Header, EncodingKey};
 use validator::{Validate, ValidationErrors};
 use std::env;
 use rand;
-use chrono::Utc;
 use crate::utils;
 
 #[derive(Deserialize, Validate)]
@@ -22,7 +22,7 @@ pub struct AuthRequest {
 }
 
 #[derive(Serialize)]
-struct AuthResponse {
+pub struct AuthResponse {
     email: String,
     token: String,
 }
@@ -77,14 +77,14 @@ pub async fn auth_handler(
                 .map_err(map_sqlx_error)?;
 
             let claims = utils::jwt::Claims {
-                sub: req.0.email.clone(), // Clone the email field from req.0
+                sub: user_id.to_string(), // Use user_id instead of email
                 exp: (OffsetDateTime::now_utc() + Duration::days(7)).unix_timestamp() as usize,
             };
             let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(env::var("JWT_SECRET").unwrap().as_ref()))
                 .map_err(|_| actix_web::error::ErrorInternalServerError("Token generation error"))?;
 
             Ok(HttpResponse::Created().json(AuthResponse {
-                email: req.0.email.clone(), // Clone the email field from req.0
+                email: req.0.email.clone(),
                 token,
             }))
         },
@@ -101,14 +101,14 @@ pub async fn auth_handler(
                 .map_err(|_| actix_web::error::ErrorUnauthorized("Invalid password"))?;
 
             let claims = utils::jwt::Claims {
-                sub: user.email.clone(), // Clone the email field from the user
+                sub: user.user_id.to_string(), // Use user_id instead of email
                 exp: (OffsetDateTime::now_utc() + Duration::days(7)).unix_timestamp() as usize,
             };
             let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(env::var("JWT_SECRET").unwrap().as_ref()))
                 .map_err(|_| actix_web::error::ErrorInternalServerError("Token generation error"))?;
 
             Ok(HttpResponse::Ok().json(AuthResponse {
-                email: user.email.clone(), // Clone the email field from the user
+                email: user.email.clone(),
                 token,
             }))
         },
