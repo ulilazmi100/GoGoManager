@@ -10,11 +10,12 @@ use sqlx::PgPool;
 use std::env;
 use log::info;
 use crate::utils::s3::create_s3_client;
+use env_logger::Env;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
-    env_logger::init();
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
     // Initialize S3 client
     let s3_client = create_s3_client().await;
