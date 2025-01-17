@@ -7,7 +7,7 @@ use url::Url;
 use crate::utils;
 use crate::models::user::{GetUserProfileResponse, UserWithoutDates};
 use crate::errors::AppError;
-// use log::{info, error};
+use log::{info, error};
 
 #[derive(Deserialize, Validate)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -118,20 +118,6 @@ pub async fn update_user_profile(
     {
         return Err(AppError::BadRequest("Null values are not allowed".to_string()).into());
     }
-
-    // Validate URLs if provided
-    if let Some(uri) = &updates.user_image_uri {
-        Url::parse(uri).map_err(|_| {
-            AppError::BadRequest("Invalid URL format in 'user_image_uri'".to_string())
-        })?;
-    }
-
-    if let Some(uri) = &updates.company_image_uri {
-        Url::parse(uri).map_err(|_| {
-            AppError::BadRequest("Invalid URL format in 'company_image_uri'".to_string())
-        })?;
-    }
-
     // Validate input fields
     updates.validate().map_err(|err| {
         let details = err.field_errors()
@@ -147,6 +133,70 @@ pub async fn update_user_profile(
             .join("; ");
         AppError::BadRequest(format!("Validation failed: {}", details))
     })?;
+
+
+    // Validate URLs if provided
+    if let Some(uri) = &updates.user_image_uri {
+        info!("Validating user_image_uri: {}", uri);
+        match Url::parse(uri) {
+            Ok(url) => {
+                // Additional validation for domain structure
+                if let Some(host) = url.host() {
+                    match host {
+                        url::Host::Domain(domain) => {
+                            // Ensure the domain has at least one dot (.) to be valid
+                            if !domain.contains('.') {
+                                error!("Invalid domain in user_image_uri: {}", uri);
+                                return Err(AppError::BadRequest("Invalid domain in 'user_image_uri'".to_string()).into());
+                            }
+                        }
+                        url::Host::Ipv4(_) | url::Host::Ipv6(_) => {
+                            // IP addresses are valid, so no additional checks are needed
+                        }
+                    }
+                } else {
+                    error!("Missing host in user_image_uri: {}", uri);
+                    return Err(AppError::BadRequest("Missing host in 'user_image_uri'".to_string()).into());
+                }
+                info!("user_image_uri is valid: {}", uri);
+            }
+            Err(err) => {
+                error!("Invalid user_image_uri: {}, error: {}", uri, err);
+                return Err(AppError::BadRequest("Invalid URL format in 'user_image_uri'".to_string()).into());
+            }
+        };
+    }
+
+    if let Some(uri) = &updates.company_image_uri {
+        info!("Validating company_image_uri: {}", uri);
+        match Url::parse(uri) {
+            Ok(url) => {
+                // Additional validation for domain structure
+                if let Some(host) = url.host() {
+                    match host {
+                        url::Host::Domain(domain) => {
+                            // Ensure the domain has at least one dot (.) to be valid
+                            if !domain.contains('.') {
+                                error!("Invalid domain in company_image_uri: {}", uri);
+                                return Err(AppError::BadRequest("Invalid domain in 'company_image_uri'".to_string()).into());
+                            }
+                        }
+                        url::Host::Ipv4(_) | url::Host::Ipv6(_) => {
+                            // IP addresses are valid, so no additional checks are needed
+                        }
+                    }
+                } else {
+                    error!("Missing host in company_image_uri: {}", uri);
+                    return Err(AppError::BadRequest("Missing host in 'company_image_uri'".to_string()).into());
+                }
+                info!("company_image_uri is valid: {}", uri);
+            }
+            Err(err) => {
+                error!("Invalid company_image_uri: {}, error: {}", uri, err);
+                return Err(AppError::BadRequest("Invalid URL format in 'company_image_uri'".to_string()).into());
+            }
+        };
+    }
 
     // Check for duplicate email if provided
     if let Some(email) = &updates.email {
