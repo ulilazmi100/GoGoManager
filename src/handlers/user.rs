@@ -134,7 +134,6 @@ pub async fn update_user_profile(
         AppError::BadRequest(format!("Validation failed: {}", details))
     })?;
 
-
     // Validate URLs if provided
     if let Some(uri) = &updates.user_image_uri {
         info!("Validating user_image_uri: {}", uri);
@@ -219,32 +218,49 @@ pub async fn update_user_profile(
 
     // Build the update query dynamically
     let mut query = sqlx::QueryBuilder::new("UPDATE users SET");
-    let mut separated: sqlx::query_builder::Separated<'_, '_, sqlx::Postgres, &str> = query.separated(", ");
+    let mut has_updates = false;
 
     if let Some(email) = &updates.email {
-        separated.push("email = ");
-        separated.push_bind(email);
+        query.push(" email = ").push_bind(email);
+        has_updates = true;
     }
     if let Some(name) = &updates.name {
-        separated.push("name = ");
-        separated.push_bind(name);
+        if has_updates {
+            query.push(", ");
+        }
+        query.push(" name = ").push_bind(name);
+        has_updates = true;
     }
     if let Some(user_image_uri) = &updates.user_image_uri {
-        separated.push("user_image_uri = ");
-        separated.push_bind(user_image_uri);
+        if has_updates {
+            query.push(", ");
+        }
+        query.push(" user_image_uri = ").push_bind(user_image_uri);
+        has_updates = true;
     }
     if let Some(company_name) = &updates.company_name {
-        separated.push("company_name = ");
-        separated.push_bind(company_name);
+        if has_updates {
+            query.push(", ");
+        }
+        query.push(" company_name = ").push_bind(company_name);
+        has_updates = true;
     }
     if let Some(company_image_uri) = &updates.company_image_uri {
-        separated.push("company_image_uri = ");
-        separated.push_bind(company_image_uri);
+        if has_updates {
+            query.push(", ");
+        }
+        query.push(" company_image_uri = ").push_bind(company_image_uri);
+        has_updates = true;
     }
-    separated.push("updated_at = ");
-    separated.push_bind(Utc::now());
-    query.push(" WHERE user_id = ");
-    query.push_bind(user_id);
+
+    // Only proceed if there are updates to make
+    if !has_updates {
+        return Err(AppError::BadRequest("No valid fields to update".to_string()).into());
+    }
+
+    // Add the updated_at field and WHERE clause
+    query.push(" , updated_at = ").push_bind(Utc::now());
+    query.push(" WHERE user_id = ").push_bind(user_id);
 
     // Execute the query
     query.build()
